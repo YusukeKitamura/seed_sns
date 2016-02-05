@@ -1,3 +1,63 @@
+<?php 
+  session_start();
+  require('dbconnect.php');
+
+  function h($value) {
+    return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+  }
+
+  function makeLink($value) {
+    return mb_ereg_replace('(https?)(://[[:alnum:]\+\$\;\?\.%,!#~*/:@&=_-]+)',
+                          '<a href="\1\2" target="_blank">\1\2</a>', $value);
+  }
+
+  $tweet = '';
+
+  if (isset($_SESSION['member_id']) && $_SESSION['time'] + 3600 > time()) {
+    $_SESSION['time'] = time();
+    
+    $sql = sprintf('SELECT * FROM members WHERE member_id=%d',
+      mysqli_real_escape_string($db, $_SESSION['member_id'])
+      );
+    $record = mysqli_query($db, $sql) or die(mysqli_error($db));
+    $member = mysqli_fetch_assoc($record);
+  } else {
+    //ログインしていない
+    header('Location: login.php');
+    exit();
+  }
+
+  //「つぶやく」ボタンをクリックした時
+  if (!empty($_POST)) {
+    if ($_POST['tweet'] != '') {
+      $sql = sprintf('INSERT INTO `tweets`SET `tweet`="%s", `member_id`=%d, `reply_tweet_id`=%d, `created`= now()',
+      mysqli_real_escape_string($db, $_POST['tweet']),
+      mysqli_real_escape_string($db, $member['member_id']),
+      mysqli_real_escape_string($db, $_POST['reply_tweet_id']));
+
+      mysqli_query($db, $sql) or die(mysqli_error($db));
+      header('Location: index.php');
+      exit();
+    }
+  }
+
+  //投稿データを取得
+  $sql = sprintf('SELECT m.nick_name, m.picture_path, t.* FROM `tweets` t, `members` m 
+    WHERE t.member_id = m.member_id ORDER BY t.created DESC');
+  $tweets = mysqli_query($db, $sql) or die(mysqli_error($db));
+
+  //返信の場合
+  if (isset($_REQUEST['res'])) {
+    $sql = sprintf('SELECT m.nick_name, m.picture_path, t.* FROM `tweets` t, `members` m 
+    WHERE t.member_id = m.member_id AND t.tweet_id=%d ORDER BY t.created DESC',
+    mysqli_real_escape_string($db, $_REQUEST['res']));
+    $record = mysqli_query($db, $sql) or die(mysqli_error($db));
+    $table = mysqli_fetch_assoc($record);
+    $tweet = '>> @'.$table['nick_name'].' '.$table['tweet'].' ';
+  }
+
+  ?>
+
 <!DOCTYPE html>
 <html lang="ja">
   <head>
@@ -48,73 +108,46 @@
   <div class="container">
     <div class="row">
       <div class="col-md-4 content-margin-top">
-        <legend>ようこそ●●さん！</legend>
+        <legend>ようこそ<?php echo h($member['nick_name']); ?>さん！</legend>
         <form method="post" action="" class="form-horizontal" role="form">
             <!-- つぶやき -->
             <div class="form-group">
               <label class="col-sm-4 control-label">つぶやき</label>
               <div class="col-sm-8">
-                <input type="text" name="age" class="form-control" placeholder="例：Hello World!">
+                <textarea name="tweet" cols="50" rows="5" class="form-control" placeholder="例：Hello World!"><?php echo h($tweet); ?></textarea>
+                <?php if (isset($_REQUEST['res'])) { ?>
+                <input type="hidden" name="reply_tweet_id" value="<?php echo h($_REQUEST['res']); ?>" >
+                <?php } ?>
               </div>
             </div>
           <input type="submit" class="btn btn-default" value="つぶやく">
         </form>
       </div>
 
+    <?php while ($tweet=mysqli_fetch_assoc($tweets)): ?>
+
       <div class="col-md-8 content-margin-top">
+        <!-- ここでつぶやいた内容を繰り返し表示 -->
         <div class="msg">
-          <img src="http://c85c7a.medialib.glogster.com/taniaarca/media/71/71c8671f98761a43f6f50a282e20f0b82bdb1f8c/blog-images-1349202732-fondo-steve-jobs-ipad.jpg" width="48" height="48">
-          <p>
-            つぶやき４<span class="name"> (Seed kun) </span>
-            [<a href="#">Re</a>]
+          <img src="member_picture/<?php echo h($tweet['picture_path']); ?>" width="48" height="48"
+           alt="<?php echo h($tweet['nick_name']); ?>">
+          <p><?php echo makeLink(h($tweet['tweet'])); ?>
+            <span class="name"> (<?php echo h($tweet['nick_name']); ?>) </span>
+            [<a href="index.php?res=<?php echo h($tweet['tweet_id']); ?>">Re</a>]
           </p>
           <p class="day">
-            <a href="#">
-              2016-01-28 18:04
+            <a href="view.php?tweet_id=<?php echo h($tweet['tweet_id']); ?>">
+              <?php echo h($tweet['created']); ?>
             </a>
-            [<a href="#" style="color: #F33;">削除</a>]
-          </p>
-        </div>
-        <div class="msg">
-          <img src="http://c85c7a.medialib.glogster.com/taniaarca/media/71/71c8671f98761a43f6f50a282e20f0b82bdb1f8c/blog-images-1349202732-fondo-steve-jobs-ipad.jpg" width="48" height="48">
-          <p>
-            つぶやき３<span class="name"> (Seed kun) </span>
-            [<a href="#">Re</a>]
-          </p>
-          <p class="day">
-            <a href="#">
-              2016-01-28 18:03
-            </a>
-            [<a href="#" style="color: #F33;">削除</a>]
-          </p>
-        </div>
-        <div class="msg">
-          <img src="http://c85c7a.medialib.glogster.com/taniaarca/media/71/71c8671f98761a43f6f50a282e20f0b82bdb1f8c/blog-images-1349202732-fondo-steve-jobs-ipad.jpg" width="48" height="48">
-          <p>
-            つぶやき２<span class="name"> (Seed kun) </span>
-            [<a href="#">Re</a>]
-          </p>
-          <p class="day">
-            <a href="#">
-              2016-01-28 18:02
-            </a>
-            [<a href="#" style="color: #F33;">削除</a>]
-          </p>
-        </div>
-        <div class="msg">
-          <img src="http://c85c7a.medialib.glogster.com/taniaarca/media/71/71c8671f98761a43f6f50a282e20f0b82bdb1f8c/blog-images-1349202732-fondo-steve-jobs-ipad.jpg" width="48" height="48">
-          <p>
-            つぶやき１<span class="name"> (Seed kun) </span>
-            [<a href="#">Re</a>]
-          </p>
-          <p class="day">
-            <a href="#">
-              2016-01-28 18:01
-            </a>
+            <?php if ($tweet['reply_tweet_id'] > 0) { ?>
+            <a href="view.php?tweet_id=<?php echo h($tweet['reply_tweet_id']); ?>" style="color: #F33;">返信元のつぶやき</a>
+            <?php } ?>
             [<a href="#" style="color: #F33;">削除</a>]
           </p>
         </div>
       </div>
+
+    <?php endwhile; ?>
 
     </div>
   </div>

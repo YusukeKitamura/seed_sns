@@ -1,16 +1,18 @@
 <?php 
+  require('../dbconnect.php');
   session_start();
+  
   $error = array();
   $nick_name = '';
   $email = '';
   $password = '';
-  $image = '';
+  $picture_path = '';
 
   if(isset($_POST) && !empty($_POST)) {
     $nick_name = htmlspecialchars($_POST['nick_name'], ENT_QUOTES, 'UTF-8');
     $email = htmlspecialchars($_POST['email'], ENT_QUOTES, 'UTF-8');
     $password = htmlspecialchars($_POST['password'], ENT_QUOTES, 'UTF-8');
-    $image = htmlspecialchars($_POST['image'], ENT_QUOTES, 'UTF-8');
+    //$picture_path = htmlspecialchars($_POST['picture_path'], ENT_QUOTES, 'UTF-8');
 
     if($_POST['nick_name']=='') {
       $error['nick_name'] = 'blank';
@@ -20,31 +22,53 @@
     }
     if($_POST['password']=='') {
        $error['password'] = 'blank';
-    } elseif(strlen($_POST['password']) < 4) {
+    } elseif (strlen($_POST['password']) < 4) {
       $error['password'] = 'length';
     }
-    if($_POST['image']=='') {
-       $error['image'] = 'blank';
-    } else {
-      $fileName = $_FILES['image']['nick_name'];
-      if(!empty($fileName)) {
+      
+    if (isset($_FILES['picture_path'])) {
+      $fileName = $_FILES['picture_path']['name'];
+      if (!empty($fileName)) {
         $ext = substr($fileName, -3);
-        if($ext != 'jpg' && $ext != 'gif') {
-           $error['image'] = 'type';
+        if ($ext != 'jpg' && $ext != 'gif') {
+           $error['picture_path'] = 'type';
         }
-       }
-     }
+      }
+    }
 
     if (empty($error)) {
-      $image = date('YmdHis').$_FILES['image']['nick_name'];
-      move_uploaded_file($_FILES['image']['tmpname'], '../member_picture/'.$image);
+      //重複アカウントのチェック
+      $sql = sprintf('SELECT COUNT(*) AS cnt FROM members WHERE email="%s"',
+        mysqli_real_escape_string($db, $_POST['email'])
+        );
+      $record = mysqli_query($db, $sql);
+      $table = mysqli_fetch_assoc($record);
+      if ($table['cnt'] > 0) {
+        $error['email'] = 'duplicate';
+      } else {
+        $picture_path = date('YmdHis').$fileName;
+        //var_dump($_FILES);
+        move_uploaded_file($_FILES['picture_path']['tmp_name'], '../member_picture/'.$picture_path);
 
-      $_SESSION['join'] = $_POST;
-      $_SESSION['join']['image'] = $image;
-      header('Location: check.php');
-      exit();
+        $_SESSION['join'] = $_POST;
+        $_SESSION['join']['picture_path'] = $picture_path;
+        
+        header('Location: check.php');
+        exit();
+      }
+
     }
   }
+
+  if (isset($_REQUEST['action']) && $_REQUEST['action']=='rewrite') {
+    $_POST = $_SESSION['join'];
+    $nick_name = htmlspecialchars($_POST['nick_name'], ENT_QUOTES, 'UTF-8');
+    $email = htmlspecialchars($_POST['email'], ENT_QUOTES, 'UTF-8');
+    $password = htmlspecialchars($_POST['password'], ENT_QUOTES, 'UTF-8');
+    $picture_path = $_SESSION['join']['picture_path'];
+    $error['rewrite'] = true;
+  }
+
  ?>
 
 <!DOCTYPE html>
@@ -101,7 +125,7 @@
     <div class="row">
       <div class="col-md-6 col-md-offset-3 content-margin-top">
         <legend>会員登録</legend>
-        <form method="post" action="" class="form-horizontal" role="form">
+        <form method="post" action="" class="form-horizontal" role="form" enctype="multipart/form-data">
           <!-- ニックネーム -->
           <div class="form-group">
             <label class="col-sm-4 control-label">ニックネーム</label>
@@ -122,6 +146,8 @@
               value="<?php echo $email; ?>">
               <?php if(isset($error['email']) && $error['email']=='blank'){ ?>
               <p class="error">*メールアドレスを入力してください</p>
+              <?php } elseif(isset($error['email']) && $error['email']=='duplicate') { ?>
+              <p class="error">*指定されたメールアドレスは既に登録されています</p>
               <?php } ?>
             </div>
           </div>
@@ -144,14 +170,10 @@
           <div class="form-group">
             <label class="col-sm-4 control-label">プロフィール写真</label>
             <div class="col-sm-8">
-              <input type="file" name="image" class="form-control" 
-              value="<?php echo $image; ?>" >
-              <?php if (isset($error['image'])) {?>
-              <?php if($error['image']=='blank'){ ?>
-              <p class="error">*恐れ入りますが、画像を改めて指定してください</p>
-              <?php } elseif ($error['image']=='type') { ?>
+              <input type="file" name="picture_path" class="form-control" 
+              value="<?php echo $picture_path; ?>" >
+              <?php if (isset($error['picture_path']) && $error['picture_path']=='type') { ?>
               <p class="error">*写真などは「.gif」または「.jpg」の画像を指定してください</p>
-              <?php } ?>
               <?php } ?>
             </div>
           </div>
