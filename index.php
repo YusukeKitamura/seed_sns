@@ -41,10 +41,6 @@
     }
   }
 
-  //投稿データを取得
-  $sql = sprintf('SELECT m.nick_name, m.picture_path, t.* FROM `tweets` t, `members` m 
-    WHERE t.member_id = m.member_id ORDER BY t.created DESC');
-  $tweets = mysqli_query($db, $sql) or die(mysqli_error($db));
 
   //返信の場合
   if (isset($_REQUEST['res'])) {
@@ -55,6 +51,28 @@
     $table = mysqli_fetch_assoc($record);
     $tweet = '>> @'.$table['nick_name'].' '.$table['tweet'].' ';
   }
+
+  //投稿を取得する
+  if (isset($_REQUEST['page'])) {
+    $page = $_REQUEST['page'];
+  } else {
+    $page = 1;
+  }
+  $page = max($page, 1);
+
+  //最終ページを取得する
+  $sql = 'SELECT COUNT(*) AS cnt FROM tweets';
+  $recordSet = mysqli_query($db, $sql) or die(mysqli_error($db));
+  $table = mysqli_fetch_assoc($recordSet);
+  $maxPage = ceil($table['cnt']/5);
+  $page = min($page, $maxPage);
+
+  $start = ($page - 1) * 5;
+  $start = max(0, $start);
+
+  $sql = sprintf('SELECT m.nick_name, m.picture_path, t.* FROM `tweets` t, `members` m 
+    WHERE t.member_id = m.member_id ORDER BY t.created DESC LIMIT %d,5', $start);
+  $tweets = mysqli_query($db, $sql) or die(mysqli_error($db));
 
   ?>
 
@@ -98,6 +116,7 @@
           <!-- Collect the nav links, forms, and other content for toggling -->
           <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
               <ul class="nav navbar-nav navbar-right">
+                <li><a href="logout.php">ログアウト</a></li>
               </ul>
           </div>
           <!-- /.navbar-collapse -->
@@ -124,9 +143,9 @@
         </form>
       </div>
 
-    <?php while ($tweet=mysqli_fetch_assoc($tweets)): ?>
 
       <div class="col-md-8 content-margin-top">
+      <?php while ($tweet=mysqli_fetch_assoc($tweets)): ?>
         <!-- ここでつぶやいた内容を繰り返し表示 -->
         <div class="msg">
           <img src="member_picture/<?php echo h($tweet['picture_path']); ?>" width="48" height="48"
@@ -142,12 +161,24 @@
             <?php if ($tweet['reply_tweet_id'] > 0) { ?>
             <a href="view.php?tweet_id=<?php echo h($tweet['reply_tweet_id']); ?>" style="color: #F33;">返信元のつぶやき</a>
             <?php } ?>
-            [<a href="#" style="color: #F33;">削除</a>]
+            [<a href="edit.php?tweet_id=<?php echo h($tweet['tweet_id']); ?>" style="color: #3C3;">編集</a>]
+            [<a href="delete.php?tweet_id=<?php echo h($tweet['tweet_id']); ?>" style="color: #F33;">削除</a>]
           </p>
         </div>
+      <?php endwhile; ?>
       </div>
 
-    <?php endwhile; ?>
+
+    <ul class="paging">
+      <?php if ($page > 1) { ?>
+      <li><a href="index.php?page=<?php print($page - 1); ?>">前のページへ</a>
+      <?php } ?>
+      <?php if ($page < $maxPage) { ?>
+      <li><a href="index.php?page=<?php print($page + 1); ?>">次のページへ</a>
+      <?php } else { ?>
+      <li>次のページへ</a>
+      <?php } ?>
+    </ul>
 
     </div>
   </div>
